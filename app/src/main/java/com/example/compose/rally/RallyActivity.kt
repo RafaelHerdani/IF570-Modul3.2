@@ -16,14 +16,27 @@
 
 package com.example.compose.rally
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Money
-import androidx.compose.material.icons.filled.MoneyOff
-import androidx.compose.material.icons.filled.PieChart
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.compose.rally.ui.components.RallyTabRow
+import com.example.compose.rally.ui.theme.RallyTheme
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import com.example.compose.rally.ui.accounts.AccountsScreen
@@ -32,45 +45,94 @@ import com.example.compose.rally.ui.bills.BillsScreen
 import com.example.compose.rally.ui.overview.OverviewScreen
 
 /**
- * Contract for information needed on every Rally navigation destination
+ * This Activity recreates part of the Rally Material Study from
+ * https://material.io/design/material-studies/rally.html
  */
-interface RallyDestination {
-    val icon: ImageVector
-    val route: String
+class RallyActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            RallyApp()
+        }
+    }
 }
 
-/**
- * Rally app navigation destinations
- */
-object Overview : RallyDestination {
-    override val icon = Icons.Filled.PieChart
-    override val route = "overview"
+@Composable
+fun RallyApp() {
+    RallyTheme {
+        val navController = rememberNavController()
+        val currentBackStack by navController.currentBackStackEntryAsState()
+        val currentDestination = currentBackStack?.destination
+
+        val currentScreen = rallyTabRowScreens.find { it.route == currentDestination?.route } ?: Accounts
+        Scaffold(
+            topBar = {
+                RallyTabRow(
+                    allScreens = rallyTabRowScreens,
+                    onTabSelected = { newScreen ->
+                        navController
+                            .navigateSingleTopTo(newScreen.route)
+                    },
+                    currentScreen = currentScreen,
+                )
+            }
+        ) { innerPadding ->
+            RallyNavHost(
+                navController = navController,
+                modifier = Modifier.padding(innerPadding)
+            )
+        }
+    }
 }
 
-object Accounts : RallyDestination {
-    override val icon = Icons.Filled.AttachMoney
-    override val route = "accounts"
+@Composable
+fun RallyNavHost(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Overview.route,
+        modifier = modifier
+    ) {
+        composable(route = Overview.route) {
+            OverviewScreen(
+                onClickSeeAllAccounts = {
+                    navController.navigateSingleTopTo(Accounts.route)
+                },
+                onClickSeeAllBills = {
+                    navController.navigateSingleTopTo(Bills.route)
+                },
+                onAccountClick = { accountType ->
+                    navController.navigateToSingleAccount(accountType)
+                }
+            )
+        }
+        composable(route = Accounts.route) {
+            AccountsScreen(
+                onAccountClick = { accountType ->
+                    navController.navigateToSingleAccount(accountType)
+                }
+            )
+        }
+        composable(route = Bills.route) {
+            BillsScreen()
+        }
+        composable(
+            route = SingleAccount.routeWithArgs,
+            arguments = SingleAccount.arguments,
+            deepLinks = SingleAccount.deepLinks
+        ) { navBackStackEntry ->
+            val accountType =
+                navBackStackEntry.arguments?.getString(SingleAccount.accountTypeArg)
+            SingleAccountScreen(accountType)
+        }
+    }
 }
 
-object Bills : RallyDestination {
-    override val icon = Icons.Filled.MoneyOff
-    override val route = "bills"
-}
+fun NavHostController.navigateSingleTopTo(route: String) =
+    this.navigate(route) { launchSingleTop = true }
 
-object SingleAccount : RallyDestination {
-    // Added for simplicity, this icon will not in fact be used, as SingleAccount isn't
-    // part of the RallyTabRow selection
-    override val icon = Icons.Filled.Money
-    override val route = "single_account"
-    const val accountTypeArg = "account_type"
-    val routeWithArgs = "${route}/{${accountTypeArg}}"
-    val arguments = listOf(
-        navArgument(accountTypeArg) { type = NavType.StringType }
-    )
-    val deepLinks = listOf(
-        navDeepLink { uriPattern = "rally://$route/{$accountTypeArg}"}
-    )
+private fun NavHostController.navigateToSingleAccount(accountType: String) {
+    this.navigateSingleTopTo("${SingleAccount.route}/$accountType")
 }
-
-// Screens to be displayed in the top RallyTabRow
-val rallyTabRowScreens = listOf(Overview, Accounts, Bills)
