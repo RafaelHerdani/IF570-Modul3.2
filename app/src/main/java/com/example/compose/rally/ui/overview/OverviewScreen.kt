@@ -64,7 +64,7 @@ fun OverviewScreen(
     onClickSeeAllBills: () -> Unit = {},
     onAccountClick: (String) -> Unit = {},
 
-) {
+    ) {
     Column(
         modifier = Modifier
             .padding(16.dp)
